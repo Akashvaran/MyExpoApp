@@ -63,7 +63,7 @@ const AuthSignUp = () => {
             if (error.response?.data?.errors) {
               setErrors(error.response.data.errors);
             } else {
-              Alert.alert('Error', error.response?.data?.message || 'Signup failed. Please try again.');
+            //   Alert.alert('Error', error.response?.data?.message || 'Signup failed. Please try again.');
             }
           }
         }
