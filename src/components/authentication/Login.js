@@ -2,15 +2,13 @@ import React, { useContext, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
 import Axios from '../axios/Axios';
 import { AuthContext } from '../productedRoute/AuthanticationContext';
-import { useNavigation } from '@react-navigation/native';
 
 
 const Login = ({ navigation }) => {
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [errors, setErrors] = useState({});
   const { login } = useContext(AuthContext);
-  const Navigation = useNavigation()
-
+  
 
   const handleChange = (name, value) => {
     const processedValue = name === 'email' ? value.toLowerCase() : value;
@@ -41,7 +39,7 @@ const Login = ({ navigation }) => {
         const response = await Axios.post('/auth/login', formData);
         login(response.data.user);
         Alert.alert('Success', 'Login successful!');
-        Navigation.navigate('Main');
+ 
         
         setFormData({ email: '', password: '' });
         setErrors({});

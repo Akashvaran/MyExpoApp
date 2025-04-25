@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
+import * as IntentLauncher from 'expo-intent-launcher';
 
 const LocationSharingModal = ({ 
   visible, 
@@ -24,64 +25,129 @@ const LocationSharingModal = ({
   const [currentLocation, setCurrentLocation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [permissionInfo, requestPermission] = Location.useForegroundPermissions();
+  const [backgroundPermissionInfo, requestBackgroundPermission] = Location.useBackgroundPermissions();
+
+  const enableLocationServices = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        await IntentLauncher.startActivityAsync(
+          IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS
+        );
+      } else {
+        await Linking.openURL('app-settings:');
+      }
+    } catch (err) {
+      console.error('Failed to open location settings:', err);
+      Alert.alert('Error', 'Could not open settings');
+    }
+  };
+
+  const verifyPermissions = async () => {
+    const servicesEnabled = await Location.hasServicesEnabledAsync();
+    if (!servicesEnabled) {
+      throw new Error('Location services are disabled');
+    }
+
+    if (permissionInfo.status !== Location.PermissionStatus.GRANTED) {
+      const { status, canAskAgain } = await requestPermission();
+      if (status !== Location.PermissionStatus.GRANTED) {
+        if (!canAskAgain) {
+          throw new Error('Location permission denied permanently');
+        }
+        throw new Error('Location permission denied');
+      }
+    }
+
+    if (Platform.OS === 'android' && Platform.Version >= 30) {
+      if (backgroundPermissionInfo.status !== Location.PermissionStatus.GRANTED) {
+        const { status: backgroundStatus, canAskAgain } = await requestBackgroundPermission();
+        if (backgroundStatus !== Location.PermissionStatus.GRANTED) {
+          if (!canAskAgain) {
+            throw new Error('Background location permission denied permanently');
+          }
+          throw new Error('Background location permission denied');
+        }
+      }
+    }
+  };
+
+  const getCurrentLocation = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setCurrentLocation(null);
+
+      await verifyPermissions();
+
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.BestForNavigation,
+        timeout: 15000,
+      });
+
+      setCurrentLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        latitudeDelta: 0.0922,
+        longitudeDelta: 0.0421,
+      });
+
+    } catch (err) {
+      console.error('Location error:', err);
+      let errorMsg = 'Failed to get location';
+      
+      switch (err.message) {
+        case 'Location services are disabled':
+          Alert.alert(
+            'Location Required',
+            'Please enable location services to share your location',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Enable Location', onPress: enableLocationServices },
+            ]
+          );
+          break;
+        case 'Location permission denied permanently':
+        case 'Background location permission denied permanently':
+          Alert.alert(
+            'Permission Required',
+            'Location permission was denied. Please enable it in app settings',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ]
+          );
+          break;
+        case 'Location permission denied':
+        case 'Background location permission denied':
+          errorMsg = 'Location permission denied';
+          break;
+        default:
+          if (err.code === 'E_LOCATION_TIMEOUT') {
+            errorMsg = 'Location request timed out. Please try again in an open area.';
+          }
+      }
+      
+      setError(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const requestPermissions = async () => {
-      try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        
-        if (status !== 'granted') {
-          setError('Location permission denied');
-          return;
-        }
-
-        if (Platform.OS === 'android' && Platform.Version >= 30) {
-          const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-          if (backgroundStatus !== 'granted') {
-            setError('Background location permission denied');
-            return;
-          }
-        }
-
-        const servicesEnabled = await Location.hasServicesEnabledAsync();
-        if (!servicesEnabled) {
-          setError('Location services are disabled');
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Highest,
-          timeout: 15000
-        });
-
-        setCurrentLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-          latitudeDelta: 0.0922,
-          longitudeDelta: 0.0421,
-        });
-      } catch (err) {
-        console.error('Location error:', err);
-        setError('Failed to get location. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (visible && !currentLocation) {
-      setLoading(true);
-      requestPermissions();
-    } else if (!visible) {
+    if (visible) {
+      getCurrentLocation();
+    } else {
       setCurrentLocation(null);
       setError(null);
+      setLoading(false);
     }
   }, [visible]);
 
   const handleSend = () => {
     if (!currentLocation) return;
     const mapUrl = `https://www.google.com/maps/search/?api=1&query=${currentLocation.latitude},${currentLocation.longitude}`;
-    const message = `📍 My location: ${mapUrl}`;
-    onSend(message);
+    onSend(` My location: ${mapUrl}`);
   };
 
   const handleOpenMaps = () => {
@@ -112,7 +178,7 @@ const LocationSharingModal = ({
             {isSending ? (
               <ActivityIndicator size="small" color="#007AFF" />
             ) : (
-              <Text style={[styles.sendText, !currentLocation && { opacity: 0.5 }]}>
+              <Text style={[styles.sendText, !currentLocation && styles.disabledText]}>
                 Send
               </Text>
             )}
@@ -126,16 +192,16 @@ const LocationSharingModal = ({
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
+            <Ionicons name="location-off" size={48} color="red" style={styles.errorIcon} />
             <Text style={styles.errorText}>{error}</Text>
+            
             <TouchableOpacity
-              style={styles.retryButton}
-              onPress={() => {
-                setError(null);
-                setLoading(true);
-                getCurrentLocation();
-              }}
+              style={error.includes('permanently') ? styles.settingsButton : styles.retryButton}
+              onPress={error.includes('permanently') ? Linking.openSettings : getCurrentLocation}
             >
-              <Text style={styles.retryText}>Try Again</Text>
+              <Text style={styles.buttonText}>
+                {error.includes('permanently') ? 'Open Settings' : 'Try Again'}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : currentLocation ? (
@@ -183,17 +249,20 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 15,
-    borderBottomWidth: 1,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#eee',
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   sendText: {
     color: '#007AFF',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  disabledText: {
+    opacity: 0.5,
   },
   map: {
     width: Dimensions.get('window').width,
@@ -202,13 +271,13 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
   loadingText: {
     marginTop: 10,
     color: '#666',
-    textAlign: 'center',
+    fontSize: 16,
   },
   errorContainer: {
     flex: 1,
@@ -216,21 +285,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
   },
+  errorIcon: {
+    marginBottom: 20,
+    opacity: 0.7,
+  },
   errorText: {
     fontSize: 16,
-    color: 'red',
+    color: '#FF3B30',
     marginBottom: 20,
     textAlign: 'center',
   },
   retryButton: {
-    padding: 10,
     backgroundColor: '#007AFF',
-    borderRadius: 5,
-    paddingHorizontal: 20,
+    borderRadius: 8,
+    padding: 12,
+    paddingHorizontal: 24,
   },
-  retryText: {
+  settingsButton: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    padding: 12,
+    paddingHorizontal: 24,
+  },
+  buttonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
   },
   openMapsButton: {
     position: 'absolute',
@@ -240,11 +320,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 24,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   openMapsText: {
     color: 'white',
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   TextInput,
@@ -8,13 +8,12 @@ import {
   Pressable,
   Text,
   ActivityIndicator,
-  Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AudioRecorder from './AudioRecorder';
 import LocationSharingModal from './LocationSharingModel';
-import CameraScreen from './Cemara';
+import CameraScreen from './Camera';
 
 const MessageInput = ({
   value,
@@ -22,6 +21,7 @@ const MessageInput = ({
   onSend,
   onSendAudio,
   onSendLocation,
+  onSendImage,
   isSending = false,
   placeholder = "Type a message...",
   isEditing = false,
@@ -34,12 +34,10 @@ const MessageInput = ({
   const [showAudioRecorder, setShowAudioRecorder] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
-  const inputRef = useRef(null);
 
   const handleSendMessage = () => {
     if (value.trim() && !isSending) {
       onSend();
-      inputRef.current?.blur();
     }
   };
 
@@ -48,13 +46,14 @@ const MessageInput = ({
     onSendAudio(audioData);
   };
 
-  const handleAudioRecordingCancel = () => {
-    setShowAudioRecorder(false);
-  };
-
   const handleSendLocation = (locationData) => {
     setShowLocationModal(false);
     onSendLocation(locationData);
+  };
+
+  const handleSendImage = (imageUri) => {
+    setShowCamera(false);
+    onSendImage(imageUri);
   };
 
   return (
@@ -68,7 +67,6 @@ const MessageInput = ({
         </TouchableOpacity>
         
         <TextInput
-          ref={inputRef}
           style={styles.input}
           value={value}
           onChangeText={onChangeText}
@@ -168,20 +166,16 @@ const MessageInput = ({
         isSending={isSending}
       />
 
-      <Modal
+      <CameraScreen
         visible={showCamera}
-        animationType="slide"
-        onRequestClose={() => setShowCamera(false)}
-      >
-        <CameraScreen 
-          onClose={() => setShowCamera(false)}
-        />
-      </Modal>
+        onClose={() => setShowCamera(false)}
+        onSendImage={handleSendImage}
+      />
 
       <AudioRecorder 
         visible={showAudioRecorder}
         onRecordingComplete={handleAudioRecordingComplete}
-        onCancel={handleAudioRecordingCancel}
+        onCancel={() => setShowAudioRecorder(false)}
       />
     </>
   );

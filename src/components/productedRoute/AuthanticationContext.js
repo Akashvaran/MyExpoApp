@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect } from 'react';
 import Axios from '../axios/Axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 export const AuthContext = createContext();
 
@@ -86,7 +87,7 @@ export const AuthProvider = ({ children }) => {
         setUserId(null);
       }
     } catch (error) {
-      console.error('Verification errors:', error);
+      Alert.alert(error)
       setIsLoggedIn(false);
       setUser(null);
       setUserId(null);

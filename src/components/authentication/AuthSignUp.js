@@ -2,13 +2,13 @@ import React, { useContext, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import Axios from '../axios/Axios';
 import { AuthContext } from '../productedRoute/AuthanticationContext';
-import { useNavigation } from '@react-navigation/native';
+
 
 const AuthSignUp = () => {
     const [formData, setFormData] = useState({ name: '', email: '', mobile: '', password: '' });
     const [errors, setErrors] = useState({});
     const {login}=useContext(AuthContext)
-    const Navication=useNavigation()
+
 
     const handleChange = (name, value) => {
 
@@ -54,7 +54,6 @@ const AuthSignUp = () => {
             login(user);
             if (user) {
               Alert.alert('Success', 'Signup successful!');
-              Navication.navigate('Main');
              
               setFormData({ name: '', email: '', mobile: '', password: '' });
               setErrors({});

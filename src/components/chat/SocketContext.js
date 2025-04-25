@@ -160,7 +160,8 @@ export const SocketProvider = ({ children }) => {
   const fetchUserList = async () => {
     try {
       const response = await Axios.get('/auth/getuser');
-      setAllUsers(response.data.users);
+      console.log(response.data);      
+      setAllUsers(response.data);
     } catch (error) {
       console.error('Failed to fetch user list:', error);
     }
@@ -169,7 +170,10 @@ export const SocketProvider = ({ children }) => {
   const fetchUserGroups = async () => {
     try {
       const response = await Axios.get(`/groups/${userId}`);
+      console.log(response);
+      
       const groupsData = response.data.data?.groups;
+      console.log(groupsData)
       setGroups(groupsData);
 
     } catch (error) {
@@ -179,23 +183,23 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
-  const fetchUnreadMessages = async () => {
-    try {
-      const response = await Axios.get(`/chat/unread/${userId}`);
-      const formattedNotifications = response.data.map(msg => ({
-        senderId: msg.sender,
-        message: msg.message,
-        status: 'delivered',
-        createdAt: msg.createdAt
-      }));
-      setNotifications(formattedNotifications);
-    } catch (error) {
-      console.error('Error fetching unread messages:', error);
-    }
-  };
+  // const fetchUnreadMessages = async () => {
+  //   try {
+  //     const response = await Axios.get(`/chat/unread/${userId}`);
+  //     const formattedNotifications = response.data.map(msg => ({
+  //       senderId: msg.sender,
+  //       message: msg.message,
+  //       status: 'delivered',
+  //       createdAt: msg.createdAt
+  //     }));
+  //     setNotifications(formattedNotifications);
+  //   } catch (error) {
+  //     console.error('Error fetching unread messages:', error);
+  //   }
+  // };
 
 
-  const sendMessage = (receiverId, message, audioData) => {
+  const sendMessage = (receiverId, message, ) => {
     if (socket && message.trim()) {
       socket.emit('sendMessage', {
         sender: userId,
@@ -387,7 +391,7 @@ export const SocketProvider = ({ children }) => {
       inactiveUsers,
       isConnected,
       fetchUserList,
-      fetchUnreadMessages,
+      // fetchUnreadMessages,
       sendMessage,
       editMessage,
       deleteMessage,

@@ -29,6 +29,30 @@ const UserDetails = () => {
   const { userId } = useContext(AuthContext);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [sortedUsers, setSortedUsers] = useState([]);
+
+  // Sort users by last message time and online status
+  useEffect(() => {
+    if (allUsers.length > 0) {
+      const sorted = [...allUsers].sort((a, b) => {
+        // Online users first
+        const aOnline = onlineUsers.includes(a._id);
+        const bOnline = onlineUsers.includes(b._id);
+        if (aOnline !== bOnline) return bOnline - aOnline;
+        
+        // Then by last message time (newest first)
+        if (a.lastMessage?.createdAt && b.lastMessage?.createdAt) {
+          return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
+        }
+        if (a.lastMessage?.createdAt) return -1;
+        if (b.lastMessage?.createdAt) return 1;
+        
+        // Finally by name
+        return a.name.localeCompare(b.name);
+      });
+      setSortedUsers(sorted);
+    }
+  }, [allUsers, onlineUsers]);
 
   useFocusEffect(
     useCallback(() => {
@@ -75,17 +99,33 @@ const UserDetails = () => {
     return 'offline';
   };
 
+  const formatLastMessage = (lastMessage) => {
+    if (!lastMessage) return 'No messages yet';
+    if (lastMessage.text) return lastMessage.text;
+    if (lastMessage.createdAt) return 'Message with attachment';
+    return 'No messages yet';
+  };
+
+  const formatMessageTime = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   const renderUserItem = ({ item }) => {
     const unreadCount = getUnreadCount(item._id);
     const status = getUserStatus(item._id);
     const isTyping = typingUsers.includes(item._id);
     const isCurrentUser = item._id === userId;
+    const lastMessageText = formatLastMessage(item.lastMessage);
+    const messageTime = formatMessageTime(item.lastMessage?.createdAt);
 
     return (
       <TouchableOpacity
         style={[
           styles.item,
-          unreadCount > 0 && styles.unreadItem
+          unreadCount > 0 && styles.unreadItem,
+          status === 'online' && styles.onlineItem
         ]}
         onPress={() => navigation.navigate('Chat', { 
           user: item,
@@ -107,17 +147,27 @@ const UserDetails = () => {
             ]}>
               {item.name} {isCurrentUser && '(You)'}
             </Text>
+            
             {isTyping ? (
               <Text style={styles.typingText}>Typing...</Text>
             ) : (
-              <Text style={styles.statusText}>
-                {status === 'online' ? 'Online' : status === 'inactive' ? 'Inactive' : 'Offline'}
+              <Text 
+                style={styles.lastMessageText}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {lastMessageText}
               </Text>
             )}
           </View>
         </View>
 
         <View style={styles.rightSection}>
+          {messageTime && (
+            <Text style={styles.messageTime}>
+              {messageTime}
+            </Text>
+          )}
           {unreadCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -145,7 +195,7 @@ const UserDetails = () => {
           <View style={styles.userInfo}>
             <Text style={styles.name}>{item.name}</Text>
             <Text style={styles.statusText}>
-              {item.members?.length } members
+              {item.members?.length || 0} members
             </Text>
           </View>
         </View>
@@ -173,12 +223,12 @@ const UserDetails = () => {
       <FlatList
         data={[
           { type: 'header', title: 'Groups' },
-          ...(groups).map(group => ({ type: 'group', ...group })),
+          ...(groups || []).map(group => ({ type: 'group', ...group })),
           { type: 'header', title: 'Users' },
-          ...allUsers.map(user => ({ type: 'user', ...user }))
+          ...sortedUsers.map(user => ({ type: 'user', ...user }))
         ]}
         keyExtractor={(item, index) => 
-          item.type === 'header' ? `header-${item.title}` : item._id || `item-${index}`
+          item.type === 'header' ? `header-${item.title}-${index}` : item._id || `item-${index}`
         }
         renderItem={({ item }) => {
           if (item.type === 'header') {
@@ -231,6 +281,12 @@ const styles = StyleSheet.create({
   },
   unreadItem: {
     backgroundColor: '#e8f5e9',
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
+  },
+  onlineItem: {
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
   },
   leftSection: {
     flexDirection: 'row',
@@ -295,11 +351,21 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 2,
   },
+  lastMessageText: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+    maxWidth: '90%',
+  },
   typingText: {
     fontSize: 12,
     color: '#4CAF50',
     fontStyle: 'italic',
     marginTop: 2,
+  },
+  messageTime: {
+    fontSize: 11,
+    color: '#999',
   },
   rightSection: {
     flexDirection: 'row',
