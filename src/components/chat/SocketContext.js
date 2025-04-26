@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { AuthContext } from '../productedRoute/AuthanticationContext';
 import Axios from '../axios/Axios';
 
@@ -66,7 +66,6 @@ export const SocketProvider = ({ children }) => {
     try {
       await Promise.all([
         fetchUserList(),
-        fetchUnreadMessages(),
         fetchUserGroups(),
       ]);
     } catch (error) {
@@ -183,29 +182,15 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
-  // const fetchUnreadMessages = async () => {
-  //   try {
-  //     const response = await Axios.get(`/chat/unread/${userId}`);
-  //     const formattedNotifications = response.data.map(msg => ({
-  //       senderId: msg.sender,
-  //       message: msg.message,
-  //       status: 'delivered',
-  //       createdAt: msg.createdAt
-  //     }));
-  //     setNotifications(formattedNotifications);
-  //   } catch (error) {
-  //     console.error('Error fetching unread messages:', error);
-  //   }
-  // };
-
-
-  const sendMessage = (receiverId, message, ) => {
-    if (socket && message.trim()) {
+  const sendMessage = (receiverId,type, content) => {
+    console.log('funcation is working')
+    console.log(receiverId,type, content)
+    if (Socket) {
       socket.emit('sendMessage', {
         sender: userId,
         receiver: receiverId,
-        message,
-        audioData: audioData,
+        type,
+        content,
         timestamp: new Date().toISOString()
       });
     }
@@ -391,7 +376,6 @@ export const SocketProvider = ({ children }) => {
       inactiveUsers,
       isConnected,
       fetchUserList,
-      // fetchUnreadMessages,
       sendMessage,
       editMessage,
       deleteMessage,

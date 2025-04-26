@@ -44,7 +44,11 @@ const GroupChat = ({ route, navigation }) => {
     try {
       setLoading(true);
       const response = await Axios.get(`/groups/${group._id}/messages`);
-      setMessages(response.data.messages.reverse());
+      const formattedMessages = response.data.messages.map(msg => ({
+        ...msg,
+        isDeleted: msg.deletedFor?.includes(userId) || false
+      }));
+      setMessages(formattedMessages.reverse());
     } catch (error) {
       Alert.alert('Error', 'Failed to load group messages');
       console.error('Failed to fetch messages:', error);
@@ -64,15 +68,22 @@ const GroupChat = ({ route, navigation }) => {
     socket.emit('joinGroup', { groupId: group._id, userId });
 
     const handleNewMessage = (message) => {
-      setMessages(prev => [...prev, message]);
+      setMessages(prev => [...prev, {
+        ...message,
+        isDeleted: message.deletedFor?.includes(userId) || false
+      }]);
       if (message.sender._id !== userId) {
         markMessageAsRead(message._id);
       }
+      scrollToBottom();
     };
 
     const handleMessageUpdate = (updatedMessage) => {
       setMessages(prev => prev.map(msg =>
-        msg._id === updatedMessage._id ? updatedMessage : msg
+        msg._id === updatedMessage._id ? {
+          ...updatedMessage,
+          isDeleted: updatedMessage.deletedFor?.includes(userId) || false
+        } : msg
       ));
     };
 
@@ -82,7 +93,7 @@ const GroupChat = ({ route, navigation }) => {
       } else {
         setMessages(prev => prev.map(msg => 
           msg._id === messageId 
-            ? { ...msg, deletedFor: [...(msg.deletedFor || []), userId] }
+            ? { ...msg, isDeleted: true }
             : msg
         ));
       }
@@ -117,6 +128,14 @@ const GroupChat = ({ route, navigation }) => {
       socket.off('groupUpdated', handleGroupUpdated);
     };
   }, [socket, group?._id, userId, navigation]);
+
+  const scrollToBottom = () => {
+    if (flatListRef.current && messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  };
 
   const markMessageAsRead = (messageId) => {
     if (socket) {
@@ -166,6 +185,7 @@ const GroupChat = ({ route, navigation }) => {
         groupId: group._id,
         senderId: userId,
         audio: audioData,
+        type: 'audio'
       };
       socket.emit('sendGroupMessage', messageData);
     } catch (error) {
@@ -182,7 +202,8 @@ const GroupChat = ({ route, navigation }) => {
       const messageData = {
         groupId: group._id,
         senderId: userId,
-        content: locationMessage
+        content: locationMessage,
+        type: 'location'
       };
       socket.emit('sendGroupMessage', messageData);
     } catch (error) {
@@ -196,7 +217,7 @@ const GroupChat = ({ route, navigation }) => {
   const handleMessageOptions = (message) => {
     setSelectedMessage(message);
     setShowMessageOptions(true);
-  }; 
+  };
 
   const handleEdit = () => {
     if (!selectedMessage) return;
@@ -238,7 +259,7 @@ const GroupChat = ({ route, navigation }) => {
 
   const renderMessage = ({ item }) => {
     const isCurrentUser = item.sender._id === userId;
-    const isDeleted = item.isDeleted || (item.deletedFor && item.deletedFor.includes(userId));
+    const isDeleted = item.isDeleted;
     const messageTime = moment(item.createdAt).format('h:mm A');
     const messageContent = item.content || item.message || '';
     
@@ -294,11 +315,6 @@ const GroupChat = ({ route, navigation }) => {
             <Text style={styles.editedText}>(edited)</Text>
           )}
         </View>
-        {isCurrentUser && !isDeleted && (
-          <TouchableOpacity onPress={() => handleMessageOptions(item)}>
-            <MaterialIcons name="more-vert" size={16} color="#666" />
-          </TouchableOpacity>
-        )}
       </TouchableOpacity>
     );
   };
@@ -342,7 +358,8 @@ const GroupChat = ({ route, navigation }) => {
         contentContainerStyle={styles.messagesContainer}
         inverted={false}
         showsVerticalScrollIndicator={false}
-        onEndReachedThreshold={0.5}
+        onContentSizeChange={scrollToBottom}
+        onLayout={scrollToBottom}
       />
 
       <KeyboardAvoidingView
@@ -460,6 +477,7 @@ const GroupChat = ({ route, navigation }) => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {

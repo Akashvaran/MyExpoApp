@@ -24,35 +24,24 @@ const UserDetails = () => {
     groups,
     fetchUserGroups,
     fetchUserList,
-    fetchUnreadMessages
   } = useContext(SocketContext);
   const { userId } = useContext(AuthContext);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortedUsers, setSortedUsers] = useState([]);
 
-  // Sort users by last message time and online status
   useEffect(() => {
-    if (allUsers.length > 0) {
-      const sorted = [...allUsers].sort((a, b) => {
-        // Online users first
-        const aOnline = onlineUsers.includes(a._id);
-        const bOnline = onlineUsers.includes(b._id);
-        if (aOnline !== bOnline) return bOnline - aOnline;
-        
-        // Then by last message time (newest first)
-        if (a.lastMessage?.createdAt && b.lastMessage?.createdAt) {
-          return new Date(b.lastMessage.createdAt) - new Date(a.lastMessage.createdAt);
-        }
-        if (a.lastMessage?.createdAt) return -1;
-        if (b.lastMessage?.createdAt) return 1;
-        
-        // Finally by name
-        return a.name.localeCompare(b.name);
-      });
-      setSortedUsers(sorted);
-    }
-  }, [allUsers, onlineUsers]);
+    if (allUsers.length === 0) return;
+  
+    const sortedByTimestamp = [...allUsers].sort((a, b) => {
+      const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt) : 0;
+      const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt) : 0;
+      
+      return bTime - aTime;
+    });
+  
+    setSortedUsers(sortedByTimestamp);
+  }, [allUsers]);
 
   useFocusEffect(
     useCallback(() => {
@@ -61,7 +50,6 @@ const UserDetails = () => {
         try {
           await Promise.all([
             fetchUserList(),
-            fetchUnreadMessages(),
             fetchUserGroups()
           ]);
         } catch (error) {
@@ -79,7 +67,6 @@ const UserDetails = () => {
     try {
       await Promise.all([
         fetchUserList(),
-        fetchUnreadMessages(),
         fetchUserGroups()
       ]);
     } catch (error) {

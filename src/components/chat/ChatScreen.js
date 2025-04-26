@@ -64,11 +64,13 @@ const ChatScreen = () => {
           status: msg.read ? 'viewed' : 'delivered',
           isEdited: msg.isEdited,
           audio: msg.type === 'audio' ? msg.content : null,
-          type: msg.type
+          type: msg.type,
+          location: msg.type === 'location' ? msg.content : null
         })));
         markAsRead(user._id);
       } catch (error) {
         console.error('Error fetching messages:', error);
+        Alert.alert('Error', 'Failed to load messages');
       } finally {
         setLoading(false);
       }
@@ -81,28 +83,34 @@ const ChatScreen = () => {
     if (!socket) return;
 
     const handleNewMessage = (message) => {
+      if (!message || !message._id) return;
+      
       setMessages(prev => {
         const messageExists = prev.some(msg => msg._id === message._id);
         if (messageExists) return prev;
+        
         return [...prev, {
           _id: message._id,
           text: message.content?.text || '',
-          sender: message.senderId,
-          receiver: message.receiverId,
-          createdAt: message.createdAt,
-          status: message.status,
-          isEdited: message.isEdited,
+          sender: message.sender,
+          receiver: message.receiver,
+          createdAt: message.createdAt || new Date(),
+          status: message.read ? 'viewed' : 'delivered',
+          isEdited: message.isEdited || false,
           audio: message.type === 'audio' ? message.content : null,
-          type: message.type
+          type: message.type || 'text',
+          location: message.type === 'location' ? message.content : null
         }];
       });
     
-      if (message.senderId === user._id) {
+      if (message.sender === user._id) {
         markAsRead(user._id);
       }
     };
 
     const handleMessageEdited = (editedMessage) => {
+      if (!editedMessage || !editedMessage._id) return;
+      
       setMessages(prev => prev.map(msg => 
         msg._id === editedMessage._id ? {
           ...msg,
@@ -113,6 +121,8 @@ const ChatScreen = () => {
     };
   
     const handleMessageDeleted = (deletedMessageId) => {
+      if (!deletedMessageId) return;
+      
       setMessages(prev => prev.filter(msg => msg._id !== deletedMessageId));
     };
 
@@ -142,48 +152,46 @@ const ChatScreen = () => {
     
     try {
       if (editingMessage) {
-        await editMessage(editingMessage._id, newMessage);
+        await editMessage(editingMessage._id, { text: newMessage });
         setEditingMessage(null);
-      } else {
-        const tempMessage = {
-          _id: Date.now().toString(),
-          text: newMessage,
-          sender: userId,
-          receiver: user._id,
-          createdAt: new Date(),
-          status: 'sending',
-          isEdited: false,
-          type: 'text'
-        };
-        
-        setMessages(prev => [...prev, tempMessage]);
-        
-        const response = await sendMessage({
-          receiver: user._id,
-          type: 'text',
-          content: { text: newMessage }
-        });
-        
-        if (response?.data?._id) {
-          setMessages(prev => prev.map(msg => 
-            msg._id === tempMessage._id ? {
-              ...msg,
-              _id: response.data._id,
-              status: onlineUsers.includes(user._id) ? 'viewed' : 'delivered',
-              createdAt: response.data.createdAt || new Date()
-            } : msg
-          ));
-        }
+        setNewMessage('');
+        return;
       }
-      setNewMessage('');
-    } catch (error) {
+      
+      const tempMessage = {
+        _id: Date.now().toString(),
+        text: newMessage,
+        sender: userId,
+        receiver: user._id,
+        createdAt: new Date(),
+        status: 'sending',
+        isEdited: false,
+        type: 'text'
+      };
+      
+      setMessages(prev => [...prev, tempMessage]);
+      
+      const response = await sendMessage(
+        user._id,
+        'text',
+        { text: newMessage }
+      );
+      
       setMessages(prev => prev.map(msg => 
-        msg.status === 'sending' ? {
+        msg._id === tempMessage._id ? {
           ...msg,
-          status: 'failed'
+          _id: response._id,
+          status: response.read ? 'viewed' : 'delivered',
+          createdAt: response.createdAt || new Date()
         } : msg
       ));
-      Alert.alert('Error', 'Failed to send message');
+      setNewMessage('');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setMessages(prev => prev.map(msg => 
+        msg.status === 'sending' ? { ...msg, status: 'failed' } : msg
+      ));
+      Alert.alert('Error', error.message || 'Failed to send message');
     } finally {
       setIsSending(false);
     }
@@ -206,29 +214,29 @@ const ChatScreen = () => {
       
       setMessages(prev => [...prev, tempMessage]);
       
-      const response = await sendMessage({
-        receiver: user._id,
-        type: 'audio',
-        content: audioData
-      });
+      const response = await sendMessage(
+        user._id,
+        'audio',
+        {
+          fileUrl: audioData.uri,
+          duration: audioData.duration,
+          mimeType: audioData.type
+        }
+      );
       
-      if (response?.data?._id) {
-        setMessages(prev => prev.map(msg => 
-          msg._id === tempMessage._id ? {
-            ...msg,
-            _id: response.data._id,
-            status: onlineUsers.includes(user._id) ? 'viewed' : 'delivered',
-            createdAt: response.data.createdAt || new Date()
-          } : msg
-        ));
-      }
+      setMessages(prev => prev.map(msg => 
+        msg._id === tempMessage._id ? {
+          ...msg,
+          _id: response._id,
+          audio: response.content,
+          status: response.read ? 'viewed' : 'delivered',
+          createdAt: response.createdAt || new Date()
+        } : msg
+      ));
     } catch (error) {
       console.error('Error sending audio:', error);
       setMessages(prev => prev.map(msg => 
-        msg.status === 'sending' ? {
-          ...msg,
-          status: 'failed'
-        } : msg
+        msg.status === 'sending' ? { ...msg, status: 'failed' } : msg
       ));
       Alert.alert('Error', 'Failed to send audio message');
     } finally {
@@ -236,13 +244,20 @@ const ChatScreen = () => {
     }
   };
 
-  const handleSendLocation = async (locationMessage) => {
+  const handleSendLocation = async (locationData) => {
     try {
       setIsSending(true);
       
+      const locationUrl = `https://www.google.com/maps/search/?api=1&query=${locationData.latitude},${locationData.longitude}`;
+      
       const tempMessage = {
         _id: Date.now().toString(),
-        text: locationMessage,
+        text: 'My location',
+        location: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          url: locationUrl
+        },
         sender: userId,
         receiver: user._id,
         createdAt: new Date(),
@@ -252,29 +267,29 @@ const ChatScreen = () => {
       
       setMessages(prev => [...prev, tempMessage]);
       
-      const response = await sendMessage({
-        receiver: user._id,
-        type: 'location',
-        content: { text: locationMessage }
-      });
+      const response = await sendMessage(
+        user._id,
+        'location',
+        {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          url: locationUrl
+        }
+      );
       
-      if (response?.data?._id) {
-        setMessages(prev => prev.map(msg => 
-          msg._id === tempMessage._id ? {
-            ...msg,
-            _id: response.data._id,
-            status: onlineUsers.includes(user._id) ? 'viewed' : 'delivered',
-            createdAt: response.data.createdAt || new Date()
-          } : msg
-        ));
-      }
+      setMessages(prev => prev.map(msg => 
+        msg._id === tempMessage._id ? {
+          ...msg,
+          _id: response._id,
+          location: response.content,
+          status: response.read ? 'viewed' : 'delivered',
+          createdAt: response.createdAt || new Date()
+        } : msg
+      ));
     } catch (error) {
       console.error('Error sending location:', error);
       setMessages(prev => prev.map(msg => 
-        msg.status === 'sending' ? {
-          ...msg,
-          status: 'failed'
-        } : msg
+        msg.status === 'sending' ? { ...msg, status: 'failed' } : msg
       ));
       Alert.alert('Error', 'Failed to send location');
     } finally {
@@ -308,15 +323,6 @@ const ChatScreen = () => {
     }
   };
 
-  const closeOptions = () => {
-    setShowOptions(false);
-  };
-
-  const cancelEditing = () => {
-    setEditingMessage(null);
-    setNewMessage('');
-  };
-
   const renderMessage = ({ item }) => (
     <View style={[
       styles.message,
@@ -326,13 +332,12 @@ const ChatScreen = () => {
       {item.type === 'location' ? (
         <TouchableOpacity 
           onPress={() => {
-            const url = item.text.split('My location:')[1].trim();
-            if (url) {
-              Linking.openURL(url).catch(err => {
-                console.error('Failed to open URL:', err);
-                Alert.alert('Error', 'Could not open map');
-              });
-            }
+            const url = item.location?.url || 
+              `https://www.google.com/maps/search/?api=1&query=${item.location?.latitude},${item.location?.longitude}`;
+            Linking.openURL(url).catch(err => {
+              console.error('Failed to open URL:', err);
+              Alert.alert('Error', 'Could not open map');
+            });
           }}
         >
           <Text style={[
@@ -344,7 +349,10 @@ const ChatScreen = () => {
         </TouchableOpacity>
       ) : item.type === 'audio' ? (
         <View style={styles.audioMessageContainer}>
-          <AudioPlayer audioData={item.audio} />
+          <AudioPlayer 
+            audioUri={item.audio?.fileUrl} 
+            duration={item.audio?.duration} 
+          />
         </View>
       ) : (
         <Text style={item.sender === userId ? styles.sentMessageText : styles.messageText}>
@@ -428,7 +436,10 @@ const ChatScreen = () => {
           isSending={isSending}
           placeholder={editingMessage ? "Edit your message..." : "Type a message..."}
           isEditing={!!editingMessage}
-          onCancelEdit={cancelEditing}
+          onCancelEdit={() => {
+            setEditingMessage(null);
+            setNewMessage('');
+          }}
           maxLength={maxWord}
           buttonColor="#007AFF"
           style={{
@@ -442,8 +453,8 @@ const ChatScreen = () => {
           <Text style={styles.errorText}>Message limit is {maxWord} characters</Text>
         )}
 
-        <Modal visible={showOptions} transparent animationType="fade" onRequestClose={closeOptions}>
-          <Pressable style={styles.modalOverlay} onPress={closeOptions}>
+        <Modal visible={showOptions} transparent animationType="fade" onRequestClose={() => setShowOptions(false)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setShowOptions(false)}>
             <View style={styles.optionsContainer}>
               <TouchableOpacity onPress={handleEdit} style={styles.optionButton}>
                 <MaterialIcons name="edit" size={20} color="#007AFF" />
@@ -454,7 +465,7 @@ const ChatScreen = () => {
                 <Text style={[styles.optionText, { color: 'red' }]}>Delete Message</Text>
               </TouchableOpacity>
               <View style={styles.divider} />
-              <TouchableOpacity onPress={closeOptions} style={styles.optionButton}>
+              <TouchableOpacity onPress={() => setShowOptions(false)} style={styles.optionButton}>
                 <Text style={styles.cancelOptionText}>Cancel</Text>
               </TouchableOpacity>
             </View>

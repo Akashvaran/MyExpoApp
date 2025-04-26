@@ -74,26 +74,22 @@ export default function CameraScreen({ visible, onClose, onSendImage }) {
           ref={cameraRef}
           onCameraReady={() => setIsCameraReady(true)}
         >
-          {/* Close Button */}
           <View style={styles.headerContainer}>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Ionicons name="close" size={32} color="white" />
             </TouchableOpacity>
           </View>
 
-          {/* Control Buttons */}
           <View style={styles.controlsContainer}>
-            {/* Flip Camera */}
+    
             <TouchableOpacity style={styles.iconButton} onPress={toggleCameraFacing}>
               <Ionicons name="camera-reverse" size={32} color="white" />
             </TouchableOpacity>
 
-            {/* Capture Image */}
             <TouchableOpacity style={styles.captureButton} onPress={takePicture}>
               <View style={styles.captureButtonInner} />
             </TouchableOpacity>
 
-            {/* Pick from Gallery */}
             <TouchableOpacity style={styles.iconButton} onPress={pickImageFromGallery}>
               <Ionicons name="image" size={32} color="white" />
             </TouchableOpacity>
