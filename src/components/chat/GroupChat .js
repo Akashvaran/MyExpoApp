@@ -51,7 +51,7 @@ const GroupChat = ({ route, navigation }) => {
       setMessages(formattedMessages.reverse());
     } catch (error) {
       Alert.alert('Error', 'Failed to load group messages');
-      console.error('Failed to fetch messages:', error);
+      // console.error('Failed to fetch messages:', error);
     } finally {
       setLoading(false);
     }
@@ -172,7 +172,7 @@ const GroupChat = ({ route, navigation }) => {
       setNewMessage('');
     } catch (error) {
       Alert.alert('Error', 'Failed to send message');
-      console.error('Error sending message:', error);
+      // console.error('Error sending message:', error);
     } finally {
       setSending(false);
     }
@@ -189,7 +189,7 @@ const GroupChat = ({ route, navigation }) => {
       };
       socket.emit('sendGroupMessage', messageData);
     } catch (error) {
-      console.error('Error sending audio:', error);
+      // console.error('Error sending audio:', error);
       Alert.alert('Error', 'Failed to send audio message');
     } finally {
       setSending(false);
@@ -207,7 +207,7 @@ const GroupChat = ({ route, navigation }) => {
       };
       socket.emit('sendGroupMessage', messageData);
     } catch (error) {
-      console.error('Error sending location:', error);
+      // console.error('Error sending location:', error);
       Alert.alert('Error', 'Failed to send location');
     } finally {
       setSending(false);
@@ -250,7 +250,7 @@ const GroupChat = ({ route, navigation }) => {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to delete message');
-      console.error('Error deleting message:', error);
+      // console.error('Error deleting message:', error);
     } finally {
       setShowDeleteConfirm(false);
       setSelectedMessage(null);
@@ -289,7 +289,7 @@ const GroupChat = ({ route, navigation }) => {
             onPress={() => {
               const url = messageContent.split('My location:')[1].trim();
               Linking.openURL(url).catch(err => {
-                console.error('Failed to open URL:', err);
+                // console.error('Failed to open URL:', err);
                 Alert.alert('Error', 'Could not open map');
               });
             }}
@@ -663,3 +663,4 @@ const styles = StyleSheet.create({
 });
 
 export default GroupChat;
+

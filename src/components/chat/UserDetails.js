@@ -18,7 +18,6 @@ const UserDetails = () => {
   const { 
     onlineUsers, 
     typingUsers, 
-    notifications, 
     allUsers,
     inactiveUsers,
     groups,
@@ -26,20 +25,20 @@ const UserDetails = () => {
     fetchUserList,
   } = useContext(SocketContext);
   const { userId } = useContext(AuthContext);
+
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [sortedUsers, setSortedUsers] = useState([]);
 
   useEffect(() => {
     if (allUsers.length === 0) return;
-  
+
     const sortedByTimestamp = [...allUsers].sort((a, b) => {
       const aTime = a.lastMessage?.createdAt ? new Date(a.lastMessage.createdAt) : 0;
       const bTime = b.lastMessage?.createdAt ? new Date(b.lastMessage.createdAt) : 0;
-      
       return bTime - aTime;
     });
-  
+
     setSortedUsers(sortedByTimestamp);
   }, [allUsers]);
 
@@ -52,8 +51,6 @@ const UserDetails = () => {
             fetchUserList(),
             fetchUserGroups()
           ]);
-        } catch (error) {
-          console.error('Error loading data:', error);
         } finally {
           setLoading(false);
         }
@@ -69,15 +66,9 @@ const UserDetails = () => {
         fetchUserList(),
         fetchUserGroups()
       ]);
-    } catch (error) {
-      console.error('Refresh error:', error);
     } finally {
       setRefreshing(false);
     }
-  };
-
-  const getUnreadCount = (userId) => {
-    return notifications.filter(n => n.senderId === userId).length;
   };
 
   const getUserStatus = (userId) => {
@@ -88,9 +79,10 @@ const UserDetails = () => {
 
   const formatLastMessage = (lastMessage) => {
     if (!lastMessage) return 'No messages yet';
-    if (lastMessage.text) return lastMessage.text;
-    if (lastMessage.createdAt) return 'Message with attachment';
-    return 'No messages yet';
+    if (lastMessage.type === 'text' && lastMessage.content?.text) {
+      return lastMessage.content.text;
+    }
+    return 'Attachment';
   };
 
   const formatMessageTime = (timestamp) => {
@@ -100,7 +92,7 @@ const UserDetails = () => {
   };
 
   const renderUserItem = ({ item }) => {
-    const unreadCount = getUnreadCount(item._id);
+    const unreadCount = item.unreadCount || 0;
     const status = getUserStatus(item._id);
     const isTyping = typingUsers.includes(item._id);
     const isCurrentUser = item._id === userId;
@@ -128,10 +120,7 @@ const UserDetails = () => {
           </View>
 
           <View style={styles.userInfo}>
-            <Text style={[
-              styles.name,
-              unreadCount > 0 && styles.unreadName
-            ]}>
+            <Text style={[styles.name, unreadCount > 0 && styles.unreadName]}>
               {item.name} {isCurrentUser && '(You)'}
             </Text>
             
@@ -150,11 +139,7 @@ const UserDetails = () => {
         </View>
 
         <View style={styles.rightSection}>
-          {messageTime && (
-            <Text style={styles.messageTime}>
-              {messageTime}
-            </Text>
-          )}
+          {messageTime && <Text style={styles.messageTime}>{messageTime}</Text>}
           {unreadCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{unreadCount}</Text>
@@ -166,30 +151,26 @@ const UserDetails = () => {
     );
   };
 
-  const renderGroupItem = ({ item }) => {
-    return (
-      <TouchableOpacity
-        style={styles.item}
-        onPress={() => navigation.navigate('GroupChat', { 
-          group: item 
-        })}
-        activeOpacity={0.8}
-      >
-        <View style={styles.leftSection}>
-          <View style={styles.groupIconContainer}>
-            <Icon name="group" size={28} color="#555" />
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.name}>{item.name}</Text>
-            <Text style={styles.statusText}>
-              {item.members?.length || 0} members
-            </Text>
-          </View>
+  const renderGroupItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.item}
+      onPress={() => navigation.navigate('GroupChat', { group: item })}
+      activeOpacity={0.8}
+    >
+      <View style={styles.leftSection}>
+        <View style={styles.groupIconContainer}>
+          <Icon name="group" size={28} color="#555" />
         </View>
-        <Icon name="chevron-right" size={24} color="#999" />
-      </TouchableOpacity>
-    );
-  };
+        <View style={styles.userInfo}>
+          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.statusText}>
+            {item.members?.length || 0} members
+          </Text>
+        </View>
+      </View>
+      <Icon name="chevron-right" size={24} color="#999" />
+    </TouchableOpacity>
+  );
 
   const renderSectionHeader = (title) => (
     <View style={styles.sectionHeader}>

@@ -69,7 +69,7 @@ const AudioPlayer = ({ audioData }) => {
       setIsPlaying(true);
       await newSound.playAsync();
     } catch (error) {
-      console.error('Error playing sound:', error);
+      // console.error('Error playing sound:', error);
       Alert.alert('Error', 'Failed to play audio message');
     } finally {
       setIsLoading(false);
@@ -83,7 +83,7 @@ const AudioPlayer = ({ audioData }) => {
         setIsPlaying(false);
       }
     } catch (error) {
-      console.error('Error pausing sound:', error);
+      // console.error('Error pausing sound:', error);
     }
   };
 

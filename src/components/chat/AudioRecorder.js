@@ -37,7 +37,7 @@ const AudioRecorder = ({ visible, onRecordingComplete, onCancel }) => {
       try {
         await recording.stopAndUnloadAsync();
       } catch (error) {
-        console.log('Error stopping recording during cleanup:', error);
+        // console.log('Error stopping recording during cleanup:', error);
       }
     }
     
@@ -84,7 +84,7 @@ const AudioRecorder = ({ visible, onRecordingComplete, onCancel }) => {
         setRecordingDuration(prev => prev + 1);
       }, 1000);
     } catch (err) {
-      console.error('Failed to start recording', err);
+      // console.error('Failed to start recording', err);
       if (isMounted.current) {
         setRecordingStatus('idle');
       }
@@ -128,7 +128,7 @@ const AudioRecorder = ({ visible, onRecordingComplete, onCancel }) => {
         fileName: `audio_${Date.now()}.m4a`
       });
     } catch (err) {
-      console.error('Failed to stop recording', err);
+      // console.error('Failed to stop recording', err);
       Alert.alert('Error', 'Failed to stop recording');
       onCancel();
     } finally {

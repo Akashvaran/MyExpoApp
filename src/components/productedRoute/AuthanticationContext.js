@@ -11,15 +11,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState(null);
 
-  console.log(isLoggedIn)
-  console.log(user)
-  console.log(userId)
+  // console.log(isLoggedIn)
+  // console.log(user)
+  // console.log(userId)
 
   const storeUserData = async (userData) => {
     try {
       await AsyncStorage.setItem('userData', JSON.stringify(userData));
     } catch (error) {
-      console.error('Error storing user data:', error);
+      // console.error('Error storing user data:', error);
     }
   };
 
@@ -27,12 +27,14 @@ export const AuthProvider = ({ children }) => {
   const logStoredUserData = async () => {
     try {
       const storedData = await AsyncStorage.getItem('userData');
-      // if(storeUserData){
-      //   const parsedData = JSON.parse(storedData);
-      //   setUserId(parsedData)
-      // }
+      
+      if (storedData) {
+      //  console.log(storedData,"this is a stored data")
+        setIsLoggedIn(true)
+      }
+     
     } catch (error) {
-      console.error('Error retrieving stored data:', error);
+      // console.error('Error retrieving stored data:', error);
     }
   };
   logStoredUserData()
@@ -42,20 +44,20 @@ export const AuthProvider = ({ children }) => {
     try {
       await AsyncStorage.removeItem('userData');
     } catch (error) {
-      console.error('Error removing user data:', error);
+      // console.error('Error removing user data:', error);
     }
   };
 
   const login = async (userData) => {
     try {
-      console.log('Setting user data:', userData);
+      // console.log('Setting user data:', userData);
       setIsLoggedIn(true);
       setUser(userData);
       setUserId(userData.id);
       await storeUserData(userData);
       setLoading(false);
     } catch (error) {
-      console.error('Login error:', error);
+      // console.error('Login error:', error);
       setLoading(false);
     }
   };
@@ -65,7 +67,7 @@ export const AuthProvider = ({ children }) => {
       await Axios.post('/auth/logout');
       await removeUserData();
     } catch (error) {
-      console.error('Logout error:', error);
+      // console.error('Logout error:', error);
     } finally {
       setIsLoggedIn(false);
       setUser(null);

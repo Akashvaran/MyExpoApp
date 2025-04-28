@@ -25,18 +25,18 @@ import AudioPlayer from './AudioPlayer';
 
 const ChatScreen = () => {
   const route = useRoute();
-  const { user } = route.params;
-  const { userId } = useContext(AuthContext);
+  const { user } = route.params || {};
+  const { userId } = useContext(AuthContext) || {};
   const { 
     socket, 
-    onlineUsers, 
-    typingUsers, 
+    onlineUsers = [], 
+    typingUsers = [], 
     sendMessage, 
     startTyping, 
     markAsRead, 
     editMessage, 
     deleteMessage 
-  } = useContext(SocketContext);
+  } = useContext(SocketContext) || {};
   
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -50,12 +50,26 @@ const ChatScreen = () => {
   const navigation = useNavigation();
   const maxWord = 100;
 
+  // Check if required data is available
+  if (!user?._id || !userId) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Unable to load chat. Missing required information.</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Text style={styles.backButtonText}>Go Back</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setLoading(true);
         const response = await Axios.get(`/chat/messages/${userId}/${user._id}`);
-        setMessages(response.data.map(msg => ({
+        setMessages((response.data || []).map(msg => ({
           _id: msg._id,
           text: msg.content?.text || '',
           sender: msg.sender,
@@ -67,7 +81,7 @@ const ChatScreen = () => {
           type: msg.type,
           location: msg.type === 'location' ? msg.content : null
         })));
-        markAsRead(user._id);
+        if (markAsRead) markAsRead(user._id);
       } catch (error) {
         console.error('Error fetching messages:', error);
         Alert.alert('Error', 'Failed to load messages');
@@ -83,7 +97,7 @@ const ChatScreen = () => {
     if (!socket) return;
 
     const handleNewMessage = (message) => {
-      if (!message || !message._id) return;
+      if (!message?._id) return;
       
       setMessages(prev => {
         const messageExists = prev.some(msg => msg._id === message._id);
@@ -103,13 +117,13 @@ const ChatScreen = () => {
         }];
       });
     
-      if (message.sender === user._id) {
+      if (message.sender === user._id && markAsRead) {
         markAsRead(user._id);
       }
     };
 
     const handleMessageEdited = (editedMessage) => {
-      if (!editedMessage || !editedMessage._id) return;
+      if (!editedMessage?._id) return;
       
       setMessages(prev => prev.map(msg => 
         msg._id === editedMessage._id ? {
@@ -135,7 +149,7 @@ const ChatScreen = () => {
       socket.off('messageEdited', handleMessageEdited);
       socket.off('messageDeleted', handleMessageDeleted);
     };
-  }, [socket, user._id, userId]);
+  }, [socket, user._id, userId, markAsRead]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -146,13 +160,13 @@ const ChatScreen = () => {
   }, [messages]);
 
   const handleSend = async () => {
-    if (!newMessage.trim() || newMessage.length > maxWord || isSending) return;
+    if (!newMessage.trim() || newMessage.length > maxWord || isSending || !sendMessage) return;
     
     setIsSending(true);
     
     try {
       if (editingMessage) {
-        await editMessage(editingMessage._id, { text: newMessage });
+        if (editMessage) await editMessage(editingMessage._id, { text: newMessage });
         setEditingMessage(null);
         setNewMessage('');
         return;
@@ -198,6 +212,8 @@ const ChatScreen = () => {
   };
 
   const handleSendAudio = async (audioData) => {
+    if (!sendMessage) return;
+    
     try {
       setIsSending(true);
       
@@ -245,6 +261,8 @@ const ChatScreen = () => {
   };
 
   const handleSendLocation = async (locationData) => {
+    if (!sendMessage) return;
+    
     try {
       setIsSending(true);
       
@@ -304,7 +322,7 @@ const ChatScreen = () => {
 
   const handleEdit = () => {
     setEditingMessage(selectedMessage);
-    setNewMessage(selectedMessage.text);
+    setNewMessage(selectedMessage?.text || '');
     setShowOptions(false);
   };
 
@@ -315,7 +333,9 @@ const ChatScreen = () => {
 
   const confirmDelete = async () => {
     try {
-      await deleteMessage(selectedMessage._id);
+      if (deleteMessage && selectedMessage?._id) {
+        await deleteMessage(selectedMessage._id);
+      }
       setShowDeleteConfirm(false);
     } catch (error) {
       console.error('Error deleting message:', error);
@@ -403,7 +423,7 @@ const ChatScreen = () => {
             <Ionicons name="arrow-back" size={24} color="#007AFF" />
           </TouchableOpacity>
           <View style={styles.headerInfo}>
-            <Text style={styles.headerText}>{user.name}</Text>
+            <Text style={styles.headerText}>{user.name || 'Unknown User'}</Text>
             <Text style={styles.statusText}>
               {onlineUsers.includes(user._id) ? 'Online' : 'Offline'}
               {typingUsers.includes(user._id) && ' • typing...'}
@@ -498,6 +518,7 @@ const ChatScreen = () => {
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   safeArea: {

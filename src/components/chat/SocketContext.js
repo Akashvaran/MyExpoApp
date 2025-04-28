@@ -17,7 +17,7 @@ export const SocketProvider = ({ children }) => {
   const [groups, setGroups] = useState([]);
   const [groupNotifications, setGroupNotifications] = useState([]);
 
-  console.log(groups)
+  // console.log(groups)
   
 
 
@@ -32,19 +32,19 @@ export const SocketProvider = ({ children }) => {
     });
 
     const onConnect = () => {
-      console.log('Socket connected:', newSocket.id);
+      // console.log('Socket connected:', newSocket.id);
       setIsConnected(true);
       newSocket.emit('registerUser', userId);
       fetchInitialData();
     };
 
     const onDisconnect = () => {
-      console.log('Socket disconnected');
+      // console.log('Socket disconnected');
       setIsConnected(false);
     };
 
     const onConnectError = (err) => {
-      console.error('Socket connection error:', err);
+      // console.error('Socket connection error:', err);
       setIsConnected(false);
     };
 
@@ -69,7 +69,7 @@ export const SocketProvider = ({ children }) => {
         fetchUserGroups(),
       ]);
     } catch (error) {
-      console.error('Error fetching initial data:', error);
+      // console.error('Error fetching initial data:', error);
     }
   };
 
@@ -159,32 +159,31 @@ export const SocketProvider = ({ children }) => {
   const fetchUserList = async () => {
     try {
       const response = await Axios.get('/auth/getuser');
-      console.log(response.data);      
+      // console.log(response.data);      
       setAllUsers(response.data);
     } catch (error) {
-      console.error('Failed to fetch user list:', error);
+      // console.error('Failed to fetch user list:', error);
     }
   };
 
   const fetchUserGroups = async () => {
     try {
       const response = await Axios.get(`/groups/${userId}`);
-      console.log(response);
+      // console.log(response);
       
       const groupsData = response.data.data?.groups;
-      console.log(groupsData)
+      // console.log(groupsData)
       setGroups(groupsData);
 
     } catch (error) {
-      console.error('Failed to fetch groups and members:', error);
+      // console.error('Failed to fetch groups and members:', error);
       setGroups([]);
       setGroupMembers([]);
     }
   };
 
   const sendMessage = (receiverId,type, content) => {
-    console.log('funcation is working')
-    console.log(receiverId,type, content)
+
     if (Socket) {
       socket.emit('sendMessage', {
         sender: userId,
@@ -240,6 +239,8 @@ export const SocketProvider = ({ children }) => {
       setNotifications(prev => prev.filter(n => n.senderId !== senderId));
     }
   };
+
+
   const fetchGroupMessages = async () => {
       try {
         setLoading(true);
@@ -247,7 +248,7 @@ export const SocketProvider = ({ children }) => {
         setMessages(response.data.messages);
       } catch (error) {
         Alert.alert('Error', 'Failed to load group messages');
-        console.error('Failed to fetch messages:', error);
+        // console.error('Failed to fetch messages:', error);
       } finally {
         setLoading(false);
       }
@@ -271,7 +272,7 @@ export const SocketProvider = ({ children }) => {
         const member = group.members.find(m => m.user?._id === memberId);
         if (member) {
           member.role = 'admin';
-          console.log('Updated member:', member);
+          // console.log('Updated member:', member);
         }
       }      
       

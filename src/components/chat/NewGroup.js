@@ -69,7 +69,7 @@ const NewGroup = ({ navigation }) => {
       navigation.goBack();
       navigation.navigate('main');
     } catch (error) {
-      console.error('Error creating group:', error);      
+      // console.error('Error creating group:', error);      
       Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);

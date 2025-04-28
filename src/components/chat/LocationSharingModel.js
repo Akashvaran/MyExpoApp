@@ -38,7 +38,7 @@ const LocationSharingModal = ({
         await Linking.openURL('app-settings:');
       }
     } catch (err) {
-      console.error('Failed to open location settings:', err);
+      // console.error('Failed to open location settings:', err);
       Alert.alert('Error', 'Could not open settings');
     }
   };
@@ -46,7 +46,7 @@ const LocationSharingModal = ({
   const verifyPermissions = async () => {
     const servicesEnabled = await Location.hasServicesEnabledAsync();
     if (!servicesEnabled) {
-      throw new Error('Location services are disabled');
+      // throw new Error('Location services are disabled');
     }
 
     if (permissionInfo.status !== Location.PermissionStatus.GRANTED) {
@@ -93,7 +93,7 @@ const LocationSharingModal = ({
       });
 
     } catch (err) {
-      console.error('Location error:', err);
+      // console.error('Location error:', err);
       let errorMsg = 'Failed to get location';
       
       switch (err.message) {
