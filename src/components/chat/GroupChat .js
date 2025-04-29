@@ -39,6 +39,7 @@ const GroupChat = ({ route, navigation }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteForEveryone, setDeleteForEveryone] = useState(false);
   const flatListRef = useRef(null);
+  console.log(messages);
 
   const fetchGroupMessages = async () => {
     try {
@@ -51,7 +52,6 @@ const GroupChat = ({ route, navigation }) => {
       setMessages(formattedMessages.reverse());
     } catch (error) {
       Alert.alert('Error', 'Failed to load group messages');
-      // console.error('Failed to fetch messages:', error);
     } finally {
       setLoading(false);
     }
@@ -68,10 +68,22 @@ const GroupChat = ({ route, navigation }) => {
     socket.emit('joinGroup', { groupId: group._id, userId });
 
     const handleNewMessage = (message) => {
-      setMessages(prev => [...prev, {
-        ...message,
-        isDeleted: message.deletedFor?.includes(userId) || false
-      }]);
+      setMessages(prev => {
+        if (message.tempId) {
+          return prev.map(m => m.tempId === message.tempId ? {
+            ...message,
+            isDeleted: message.deletedFor?.includes(userId) || false
+          } : m);
+        }
+        if (!prev.some(m => m._id === message._id)) {
+          return [...prev, {
+            ...message,
+            isDeleted: message.deletedFor?.includes(userId) || false
+          }];
+        }
+        return prev;
+      });
+      
       if (message.sender._id !== userId) {
         markMessageAsRead(message._id);
       }
@@ -147,12 +159,32 @@ const GroupChat = ({ route, navigation }) => {
     }
   };
 
+  const createTempMessage = (content, type, additionalProps = {}) => {
+    return {
+      tempId: Date.now().toString(),
+      content,
+      type,
+      sender: { _id: userId, name: 'You' },
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+      isEdited: false,
+      ...additionalProps
+    };
+  };
+
   const sendMessage = async () => {
     if (!newMessage.trim() || sending) return;
 
     try {
       setSending(true);
+      
       if (editingMessage) {
+        setMessages(prev => prev.map(msg =>
+          msg._id === editingMessage._id 
+            ? { ...msg, content: newMessage.trim(), isEdited: true }
+            : msg
+        ));
+        
         const messageData = {
           messageId: editingMessage._id,
           groupId: group._id,
@@ -162,57 +194,97 @@ const GroupChat = ({ route, navigation }) => {
         socket.emit('updateGroupMessage', messageData);
         setEditingMessage(null);
       } else {
+        const tempMessage = createTempMessage(newMessage.trim(), 'text');
+        setMessages(prev => [...prev, tempMessage]);
+        scrollToBottom();
+
         const messageData = {
           groupId: group._id,
           senderId: userId,
-          content: newMessage.trim()
+          type: 'text',
+          content: newMessage.trim(),
+          tempId: tempMessage.tempId
         };
         socket.emit('sendGroupMessage', messageData);
       }
       setNewMessage('');
     } catch (error) {
       Alert.alert('Error', 'Failed to send message');
-      // console.error('Error sending message:', error);
+  
+      if (!editingMessage) {
+        setMessages(prev => prev.filter(m => m.tempId !== tempMessage.tempId));
+      }
     } finally {
       setSending(false);
     }
   };
 
   const handleSendAudio = async (audioData) => {
+    console.log(audioData);
+    
     try {
       setSending(true);
+      
+      const tempMessage = createTempMessage(null, 'audio', { audio: audioData });
+      setMessages(prev => [...prev, tempMessage]);
+      scrollToBottom();
+
       const messageData = {
         groupId: group._id,
         senderId: userId,
-        audio: audioData,
-        type: 'audio'
+        type: 'audio',
+        content: {
+          AudioData:audioData.audio,
+          fileUrl: audioData.uri,
+          duration: audioData.duration,
+          mimeType: audioData.mimeType,
+          size: audioData.size,
+          fileName: audioData.fileName
+        },
+        tempId: tempMessage.tempId
       };
+      console.log(messageData)
       socket.emit('sendGroupMessage', messageData);
     } catch (error) {
-      // console.error('Error sending audio:', error);
       Alert.alert('Error', 'Failed to send audio message');
+
+      setMessages(prev => prev.filter(m => m.tempId !== tempMessage.tempId));
     } finally {
       setSending(false);
     }
   };
 
-  const handleSendLocation = (locationMessage) => {
-    try {
-      setSending(true);
-      const messageData = {
-        groupId: group._id,
-        senderId: userId,
-        content: locationMessage,
-        type: 'location'
-      };
-      socket.emit('sendGroupMessage', messageData);
-    } catch (error) {
-      // console.error('Error sending location:', error);
-      Alert.alert('Error', 'Failed to send location');
-    } finally {
-      setSending(false);
-    }
-  };
+  const handleSendLocation = (locationData) => {
+  try {
+    setSending(true);
+    
+    const tempMessage = createTempMessage({
+      latitude: locationData.latitude,
+      longitude: locationData.longitude
+    }, 'location');
+    
+    setMessages(prev => [...prev, tempMessage]);
+    scrollToBottom();
+
+    const messageData = {
+      groupId: group._id,
+      senderId: userId,
+      type: 'location',
+      content: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude
+      },
+      tempId: tempMessage.tempId
+    };
+    
+    socket.emit('sendGroupMessage', messageData);
+  } catch (error) {
+    Alert.alert('Error', 'Failed to send location');
+    setMessages(prev => prev.filter(m => m.tempId !== tempMessage.tempId));
+  } finally {
+    setSending(false);
+  }
+};
 
   const handleMessageOptions = (message) => {
     setSelectedMessage(message);
@@ -222,7 +294,11 @@ const GroupChat = ({ route, navigation }) => {
   const handleEdit = () => {
     if (!selectedMessage) return;
     setEditingMessage(selectedMessage);
-    setNewMessage(selectedMessage.content || selectedMessage.message);
+    setNewMessage(
+      typeof selectedMessage.content === 'string' 
+        ? selectedMessage.content 
+        : selectedMessage.content?.text || ''
+    );
     setShowMessageOptions(false);
   };
 
@@ -250,18 +326,32 @@ const GroupChat = ({ route, navigation }) => {
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to delete message');
-      // console.error('Error deleting message:', error);
     } finally {
       setShowDeleteConfirm(false);
       setSelectedMessage(null);
     }
   };
 
+  const getMessageContent = (message) => {
+    if (message.isDeleted) return null;
+    
+    if (typeof message.content === 'string') {
+      return message.content;
+    }
+    
+    if (typeof message.content === 'object' && message.content !== null) {
+      return message.content.text || '';
+    }
+    
+    return message.message || '';
+  };
+
   const renderMessage = ({ item }) => {
     const isCurrentUser = item.sender._id === userId;
     const isDeleted = item.isDeleted;
     const messageTime = moment(item.createdAt).format('h:mm A');
-    const messageContent = item.content || item.message || '';
+    const messageContent = getMessageContent(item);
+    const isLocationMessage = typeof messageContent === 'string' && messageContent.startsWith('My location:');
     
     if (isDeleted) {
       return (
@@ -284,12 +374,11 @@ const GroupChat = ({ route, navigation }) => {
           <Text style={styles.senderName}>{item.sender.name}</Text>
         )}
         
-        {messageContent.startsWith('My location:') ? (
+        {isLocationMessage ? (
           <TouchableOpacity 
             onPress={() => {
               const url = messageContent.split('My location:')[1].trim();
               Linking.openURL(url).catch(err => {
-                // console.error('Failed to open URL:', err);
                 Alert.alert('Error', 'Could not open map');
               });
             }}
@@ -301,7 +390,7 @@ const GroupChat = ({ route, navigation }) => {
               View Location on Map
             </Text>
           </TouchableOpacity>
-        ) : item.audio ? (
+        ) : item.type==='audio' ? (
           <View style={styles.audioMessageContainer}>
             <AudioPlayer audioData={item.audio} />
           </View>
@@ -353,7 +442,7 @@ const GroupChat = ({ route, navigation }) => {
       <FlatList
         ref={flatListRef}
         data={messages}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item._id || item.tempId}
         renderItem={renderMessage}
         contentContainerStyle={styles.messagesContainer}
         inverted={false}
@@ -478,189 +567,173 @@ const GroupChat = ({ route, navigation }) => {
   );
 };
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
     backgroundColor: '#4CAF50',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    elevation: 3,
   },
   backButton: {
-    marginRight: 10,
+    marginRight: 15,
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
   },
   groupName: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFF',
-    maxWidth: '70%',
   },
   memberCount: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
+    color: '#E0E0E0',
   },
   infoButton: {
-    marginLeft: 10,
+    marginLeft: 15,
   },
   messagesContainer: {
     padding: 10,
-    paddingBottom: 20,
   },
   messageBubble: {
     maxWidth: '80%',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-end',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 10,
   },
   currentUserBubble: {
     alignSelf: 'flex-end',
     backgroundColor: '#DCF8C6',
-    borderTopRightRadius: 0,
   },
   otherUserBubble: {
     alignSelf: 'flex-start',
     backgroundColor: '#FFF',
-    borderTopLeftRadius: 0,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
   },
   senderName: {
     fontWeight: 'bold',
-    fontSize: 12,
-    color: '#555',
     marginBottom: 4,
-    width: '100%',
+    color: '#333',
   },
   messageText: {
     fontSize: 16,
-    color: '#000',
+    color: '#333',
   },
   messageMeta: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 8,
+    justifyContent: 'flex-end',
+    marginTop: 5,
   },
   timeText: {
-    fontSize: 10,
-    color: '#666',
+    fontSize: 12,
+    color: '#757575',
     marginRight: 5,
   },
   editedText: {
-    fontSize: 10,
-    color: '#999',
+    fontSize: 12,
+    color: '#757575',
     fontStyle: 'italic',
   },
   deletedMessage: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
     alignSelf: 'center',
-    padding: 8,
-    borderRadius: 8,
+    padding: 10,
   },
   deletedMessageText: {
-    color: '#999',
+    color: '#757575',
     fontStyle: 'italic',
   },
-  inputWrapper: {
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderTopColor: '#EEE',
-  },
-  modalOverlay: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  inputWrapper: {
+    padding: 10,
+    backgroundColor: '#FFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E0E0E0',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   messageOptionsContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFF',
     borderRadius: 10,
     width: '80%',
-    padding: 15,
+    paddingVertical: 10,
   },
   optionButton: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
+    paddingHorizontal: 20,
   },
   optionText: {
     fontSize: 16,
-    marginLeft: 10,
+    marginLeft: 15,
+    color: '#333',
   },
   cancelOptionText: {
     fontSize: 16,
-    color: '#4CAF50',
+    color: '#007AFF',
     textAlign: 'center',
   },
   divider: {
     height: 1,
-    backgroundColor: '#EEE',
+    backgroundColor: '#E0E0E0',
     marginVertical: 5,
   },
   confirmContainer: {
-    backgroundColor: 'white',
+    backgroundColor: '#FFF',
     borderRadius: 10,
-    padding: 20,
     width: '80%',
+    padding: 20,
   },
   confirmTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
+    textAlign: 'center',
   },
   confirmText: {
     fontSize: 16,
     marginBottom: 20,
+    textAlign: 'center',
+    color: '#555',
   },
   confirmButtons: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
   },
   confirmButton: {
-    padding: 10,
     borderRadius: 5,
-    marginLeft: 15,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    minWidth: '45%',
+    alignItems: 'center',
   },
   cancelButton: {
-    borderWidth: 1,
-    borderColor: '#DDD',
+    backgroundColor: '#E0E0E0',
   },
   deleteButton: {
     backgroundColor: '#F44336',
   },
   confirmButtonText: {
     fontSize: 16,
+    fontWeight: 'bold',
   },
   audioMessageContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
+    width: 200,
   },
 });
 
 export default GroupChat;
-

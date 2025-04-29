@@ -182,9 +182,31 @@ export const SocketProvider = ({ children }) => {
     }
   };
 
-  const sendMessage = (receiverId,type, content) => {
-
-    if (Socket) {
+  const sendMessage = (receiverId, type, content) => {
+    try {
+      if (!userId) {
+        console.warn("sendMessage error: userId is undefined");
+        return;
+      }
+  
+      if (!receiverId) {
+        console.warn("sendMessage error: receiverId is undefined");
+        return;
+      }
+  
+      if (!socket) {
+        console.warn("sendMessage error: socket is undefined");
+        return;
+      }
+  
+      console.log("Sending message with data:", {
+        sender: userId,
+        receiver: receiverId,
+        type,
+        content,
+        timestamp: new Date().toISOString()
+      });
+  
       socket.emit('sendMessage', {
         sender: userId,
         receiver: receiverId,
@@ -192,8 +214,12 @@ export const SocketProvider = ({ children }) => {
         content,
         timestamp: new Date().toISOString()
       });
+  
+    } catch (error) {
+      console.error("sendMessage exception:", error);
     }
   };
+  
 
   const editMessage = (messageId, newText) => {
     if (socket) {

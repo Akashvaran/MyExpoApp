@@ -11,6 +11,8 @@ const AudioPlayer = ({ audioData }) => {
   const [position, setPosition] = useState(0);
   const [duration, setDuration] = useState((audioData?.duration || 0) * 1000);
 
+ console.log("this my audio data",audioData);
+ 
   useEffect(() => {
     return () => {
       if (sound) {

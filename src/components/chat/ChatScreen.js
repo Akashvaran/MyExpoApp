@@ -25,7 +25,7 @@ import AudioPlayer from './AudioPlayer';
 
 const ChatScreen = () => {
   const route = useRoute();
-  const { user } = route.params || {};
+  const { user } = route.params ;
   const { userId } = useContext(AuthContext) || {};
   const { 
     socket, 
@@ -37,7 +37,8 @@ const ChatScreen = () => {
     editMessage, 
     deleteMessage 
   } = useContext(SocketContext) || {};
-  
+ 
+
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -49,13 +50,17 @@ const ChatScreen = () => {
   const flatListRef = useRef(null);
   const navigation = useNavigation();
   const maxWord = 100;
+console.log(messages)
+  useEffect(() => {
+    console.log('Route params:', route.params);
+    console.log('User:', user);
+  }, [route.params]);
 
-  // Check if required data is available
   if (!user?._id || !userId) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Unable to load chat. Missing required information.</Text>
+          <Text style={styles.errorText}>Unable to load chat. Missing</Text>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Text style={styles.backButtonText}>Go Back</Text>
           </TouchableOpacity>
@@ -64,12 +69,14 @@ const ChatScreen = () => {
     );
   }
 
+
+
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setLoading(true);
         const response = await Axios.get(`/chat/messages/${userId}/${user._id}`);
-        setMessages((response.data || []).map(msg => ({
+        setMessages((response.data).map(msg => ({
           _id: msg._id,
           text: msg.content?.text || '',
           sender: msg.sender,
@@ -191,14 +198,7 @@ const ChatScreen = () => {
         { text: newMessage }
       );
       
-      setMessages(prev => prev.map(msg => 
-        msg._id === tempMessage._id ? {
-          ...msg,
-          _id: response._id,
-          status: response.read ? 'viewed' : 'delivered',
-          createdAt: response.createdAt || new Date()
-        } : msg
-      ));
+      
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
@@ -220,7 +220,10 @@ const ChatScreen = () => {
       const tempMessage = {
         _id: Date.now().toString(),
         text: '[Audio message]',
-        audio: audioData,
+        audio: {
+          ...audioData,
+          AudioData: base64Audio 
+        },
         sender: userId,
         receiver: user._id,
         createdAt: new Date(),
@@ -234,21 +237,16 @@ const ChatScreen = () => {
         user._id,
         'audio',
         {
+          AudioData:audioData.audio,
           fileUrl: audioData.uri,
           duration: audioData.duration,
-          mimeType: audioData.type
+          mimeType: audioData.mimeType,
+          size: audioData.size,
+          fileName: audioData.fileName
         }
       );
       
-      setMessages(prev => prev.map(msg => 
-        msg._id === tempMessage._id ? {
-          ...msg,
-          _id: response._id,
-          audio: response.content,
-          status: response.read ? 'viewed' : 'delivered',
-          createdAt: response.createdAt || new Date()
-        } : msg
-      ));
+     
     } catch (error) {
       console.error('Error sending audio:', error);
       setMessages(prev => prev.map(msg => 
@@ -295,15 +293,6 @@ const ChatScreen = () => {
         }
       );
       
-      setMessages(prev => prev.map(msg => 
-        msg._id === tempMessage._id ? {
-          ...msg,
-          _id: response._id,
-          location: response.content,
-          status: response.read ? 'viewed' : 'delivered',
-          createdAt: response.createdAt || new Date()
-        } : msg
-      ));
     } catch (error) {
       console.error('Error sending location:', error);
       setMessages(prev => prev.map(msg => 
@@ -369,9 +358,9 @@ const ChatScreen = () => {
         </TouchableOpacity>
       ) : item.type === 'audio' ? (
         <View style={styles.audioMessageContainer}>
+
           <AudioPlayer 
-            audioUri={item.audio?.fileUrl} 
-            duration={item.audio?.duration} 
+            audioData={item.audio}
           />
         </View>
       ) : (
